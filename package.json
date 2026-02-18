@@ -1,0 +1,35 @@
+{
+  "name": "slack-incident-agent",
+  "version": "1.0.0",
+  "description": "Grafana alert webhook server that triggers Claude incident-orchestrator agent and reports to Slack",
+  "main": "dist/webhook-server.js",
+  "scripts": {
+    "webhook": "tsx src/webhook-server.ts",
+    "webhook:prod": "node dist/webhook-server.js",
+    "build": "tsc",
+    "dev": "tsx watch src/webhook-server.ts"
+  },
+  "keywords": [
+    "grafana",
+    "incident",
+    "slack",
+    "claude",
+    "webhook"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@slack/web-api": "^7.3.4",
+    "express": "^4.21.2",
+    "dotenv": "^16.4.7"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.10.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  }
+}
