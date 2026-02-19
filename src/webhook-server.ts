@@ -1,7 +1,6 @@
 import 'dotenv/config';
 import express, { Request, Response } from 'express';
 import { GrafanaWebhookPayload } from './types/grafana';
-import { parseAlert, buildClaudePrompt, getFiringAlerts } from './utils/alert-parser';
 import { runIncidentAgent } from './services/claude-runner';
 import { notifyAlertReceived, notifyAnalysisComplete, notifyError } from './services/slack-notifier';
 
@@ -35,38 +34,38 @@ app.post('/webhook', validateSecret, (req: Request, res: Response) => {
   // 즉시 200 응답 (Grafana 타임아웃 방지)
   res.status(200).json({ received: true });
 
-  const firingAlerts = getFiringAlerts(payload);
+  const firingAlerts = payload.alerts.filter((a) => a.status === 'firing');
   if (firingAlerts.length === 0) {
     console.log('[Webhook] resolved 알람만 수신 - 무시');
     return;
   }
 
-  // 각 firing alert에 대해 비동기 분석 실행
-  firingAlerts.forEach((alert) => {
-    const parsed = parseAlert(alert);
-    const prompt = buildClaudePrompt(parsed);
+  const title = payload.title || 'Grafana Alert';
+  const rawJson = JSON.stringify(payload, null, 2);
+  const prompt =
+    `incident-orchestrator 에이전트를 사용해서 다음 Grafana 알람을 분석해줘:\n\n` +
+    `\`\`\`json\n${rawJson}\n\`\`\``;
 
-    console.log(`[Webhook] 알람 수신: ${parsed.service} - ${parsed.alertType} at ${parsed.incidentTime}`);
+  console.log(`[Webhook] 알람 수신: ${title} (firing: ${firingAlerts.length}건)`);
 
-    // 비동기 파이프라인 (응답과 무관하게 실행)
-    (async () => {
-      let alertTs: string | undefined;
+  // 비동기 파이프라인 (응답과 무관하게 실행)
+  (async () => {
+    let alertTs: string | undefined;
+    try {
+      alertTs = await notifyAlertReceived(title, payload);
+      const report = await runIncidentAgent(prompt);
+      await notifyAnalysisComplete(title, report, alertTs);
+      console.log(`[Webhook] 분석 완료: ${title}`);
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      console.error(`[Webhook] 분석 실패 (${title}): ${errMsg}`);
       try {
-        alertTs = await notifyAlertReceived(parsed);
-        const report = await runIncidentAgent(prompt);
-        await notifyAnalysisComplete(parsed, report, alertTs);
-        console.log(`[Webhook] 분석 완료: ${parsed.service}`);
-      } catch (err) {
-        const errMsg = err instanceof Error ? err.message : String(err);
-        console.error(`[Webhook] 분석 실패 (${parsed.service}): ${errMsg}`);
-        try {
-          await notifyError(parsed, errMsg, alertTs);
-        } catch (slackErr) {
-          console.error('[Webhook] Slack 에러 알림 전송 실패:', slackErr);
-        }
+        await notifyError(title, errMsg, alertTs);
+      } catch (slackErr) {
+        console.error('[Webhook] Slack 에러 알림 전송 실패:', slackErr);
       }
-    })();
-  });
+    }
+  })();
 });
 
 app.listen(PORT, () => {

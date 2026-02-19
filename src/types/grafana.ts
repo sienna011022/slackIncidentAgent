@@ -29,12 +29,3 @@ export interface GrafanaAlert {
   values: Record<string, number> | null;
   valueString: string;
 }
-
-export interface ParsedAlert {
-  service: string;
-  alertType: string;
-  incidentTime: string;
-  severity: string;
-  description: string;
-  rawAlert: GrafanaAlert;
-}

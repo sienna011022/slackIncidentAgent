@@ -1,5 +1,5 @@
 import { WebClient, Block, KnownBlock } from '@slack/web-api';
-import { ParsedAlert } from '../types/grafana';
+import { GrafanaWebhookPayload } from '../types/grafana';
 
 const SLACK_MAX_BLOCK_TEXT = 2900;
 
@@ -21,13 +21,30 @@ function getChannelId(): string {
 }
 
 // "분석 시작 중" 메시지를 전송하고 ts(메시지 ID)를 반환
-export async function notifyAlertReceived(parsed: ParsedAlert): Promise<string | undefined> {
-  const severityEmoji = parsed.severity === 'critical' ? '🔴' : '🟡';
+export async function notifyAlertReceived(title: string, payload: GrafanaWebhookPayload): Promise<string | undefined> {
+  const firingCount = payload.alerts.filter((a) => a.status === 'firing').length;
+  const status = payload.status === 'firing' ? '🔴' : '🟡';
 
   const result = await getClient().chat.postMessage({
     channel: getChannelId(),
-    blocks: alertBlocks(parsed, severityEmoji),
-    text: `${severityEmoji} 장애 감지: ${parsed.service}`,
+    blocks: [
+      {
+        type: 'header',
+        text: { type: 'plain_text', text: `${status} ${title}` },
+      },
+      {
+        type: 'section',
+        fields: [
+          { type: 'mrkdwn', text: `*상태*\n${payload.status}` },
+          { type: 'mrkdwn', text: `*Firing 알람 수*\n${firingCount}건` },
+        ],
+      },
+      {
+        type: 'context',
+        elements: [{ type: 'mrkdwn', text: '⏳ `incident-orchestrator` 에이전트가 분석을 시작합니다...' }],
+      },
+    ],
+    text: `${status} 장애 감지: ${title}`,
   });
 
   return result.ts;
@@ -35,7 +52,7 @@ export async function notifyAlertReceived(parsed: ParsedAlert): Promise<string |
 
 // 분석 완료 시 원래 메시지를 업데이트하고, 리포트가 길면 스레드로 이어서 전송
 export async function notifyAnalysisComplete(
-  parsed: ParsedAlert,
+  title: string,
   report: string,
   alertTs?: string,
 ): Promise<void> {
@@ -43,16 +60,25 @@ export async function notifyAnalysisComplete(
   const slack = getClient();
   const channel = getChannelId();
 
+  const completedBlocks: (Block | KnownBlock)[] = [
+    {
+      type: 'header',
+      text: { type: 'plain_text', text: `✅ 분석 완료: ${title}` },
+    },
+    {
+      type: 'section',
+      text: { type: 'mrkdwn', text: chunks[0] },
+    },
+  ];
+
   if (alertTs) {
-    // 원래 "분석 시작 중" 메시지를 "분석 완료"로 업데이트
     await slack.chat.update({
       channel,
       ts: alertTs,
-      blocks: completedBlocks(parsed, chunks[0]),
-      text: `✅ 분석 완료: ${parsed.service} ${parsed.alertType}`,
+      blocks: completedBlocks,
+      text: `✅ 분석 완료: ${title}`,
     });
 
-    // 리포트가 길면 나머지를 스레드로 전송
     for (let i = 1; i < chunks.length; i++) {
       await slack.chat.postMessage({
         channel,
@@ -62,11 +88,10 @@ export async function notifyAnalysisComplete(
       });
     }
   } else {
-    // alertTs가 없으면 새 메시지로 전송
     const result = await slack.chat.postMessage({
       channel,
-      blocks: completedBlocks(parsed, chunks[0]),
-      text: `✅ 분석 완료: ${parsed.service} ${parsed.alertType}`,
+      blocks: completedBlocks,
+      text: `✅ 분석 완료: ${title}`,
     });
 
     for (let i = 1; i < chunks.length; i++) {
@@ -80,14 +105,14 @@ export async function notifyAnalysisComplete(
   }
 }
 
-export async function notifyError(parsed: ParsedAlert, error: string, alertTs?: string): Promise<void> {
+export async function notifyError(title: string, error: string, alertTs?: string): Promise<void> {
   const slack = getClient();
   const channel = getChannelId();
 
   const blocks: (Block | KnownBlock)[] = [
     {
       type: 'header',
-      text: { type: 'plain_text', text: `❌ 분석 실패: ${parsed.service}` },
+      text: { type: 'plain_text', text: `❌ 분석 실패: ${title}` },
     },
     {
       type: 'section',
@@ -99,60 +124,10 @@ export async function notifyError(parsed: ParsedAlert, error: string, alertTs?: 
   ];
 
   if (alertTs) {
-    await slack.chat.update({ channel, ts: alertTs, blocks, text: `❌ 분석 실패: ${parsed.service}` });
+    await slack.chat.update({ channel, ts: alertTs, blocks, text: `❌ 분석 실패: ${title}` });
   } else {
-    await slack.chat.postMessage({ channel, blocks, text: `❌ 분석 실패: ${parsed.service}` });
+    await slack.chat.postMessage({ channel, blocks, text: `❌ 분석 실패: ${title}` });
   }
-}
-
-// --- Block 빌더 ---
-
-function alertBlocks(parsed: ParsedAlert, severityEmoji: string): (Block | KnownBlock)[] {
-  return [
-    {
-      type: 'header',
-      text: { type: 'plain_text', text: `${severityEmoji} 장애 감지: ${parsed.service}` },
-    },
-    {
-      type: 'section',
-      fields: [
-        { type: 'mrkdwn', text: `*서비스*\n${parsed.service}` },
-        { type: 'mrkdwn', text: `*알람 타입*\n${parsed.alertType}` },
-        { type: 'mrkdwn', text: `*발생 시각*\n${parsed.incidentTime}` },
-        { type: 'mrkdwn', text: `*심각도*\n${parsed.severity}` },
-      ],
-    },
-    {
-      type: 'section',
-      text: { type: 'mrkdwn', text: `*요약*\n${parsed.description}` },
-    },
-    {
-      type: 'context',
-      elements: [{ type: 'mrkdwn', text: '⏳ `incident-orchestrator` 에이전트가 분석을 시작합니다...' }],
-    },
-  ];
-}
-
-function completedBlocks(parsed: ParsedAlert, firstChunk: string): (Block | KnownBlock)[] {
-  return [
-    {
-      type: 'header',
-      text: { type: 'plain_text', text: `✅ 분석 완료: ${parsed.service} ${parsed.alertType}` },
-    },
-    {
-      type: 'section',
-      fields: [
-        { type: 'mrkdwn', text: `*서비스*\n${parsed.service}` },
-        { type: 'mrkdwn', text: `*알람 타입*\n${parsed.alertType}` },
-        { type: 'mrkdwn', text: `*발생 시각*\n${parsed.incidentTime}` },
-        { type: 'mrkdwn', text: `*심각도*\n${parsed.severity}` },
-      ],
-    },
-    {
-      type: 'section',
-      text: { type: 'mrkdwn', text: firstChunk },
-    },
-  ];
 }
 
 function splitReport(text: string): string[] {
