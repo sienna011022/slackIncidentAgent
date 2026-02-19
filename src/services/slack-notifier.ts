@@ -2,6 +2,11 @@ import { WebClient, Block, KnownBlock } from '@slack/web-api';
 import { GrafanaWebhookPayload } from '../types/grafana';
 
 const SLACK_MAX_BLOCK_TEXT = 2900;
+const SLACK_HEADER_MAX = 150;
+
+function headerText(text: string): string {
+  return text.length <= SLACK_HEADER_MAX ? text : text.slice(0, SLACK_HEADER_MAX - 1) + '…';
+}
 
 let client: WebClient | null = null;
 
@@ -30,7 +35,7 @@ export async function notifyAlertReceived(title: string, payload: GrafanaWebhook
     blocks: [
       {
         type: 'header',
-        text: { type: 'plain_text', text: `${status} ${title}` },
+        text: { type: 'plain_text', text: headerText(`${status} ${title}`) },
       },
       {
         type: 'section',
@@ -63,7 +68,7 @@ export async function notifyAnalysisComplete(
   const completedBlocks: (Block | KnownBlock)[] = [
     {
       type: 'header',
-      text: { type: 'plain_text', text: `✅ 분석 완료: ${title}` },
+      text: { type: 'plain_text', text: headerText(`✅ 분석 완료: ${title}`) },
     },
     {
       type: 'section',
@@ -112,7 +117,7 @@ export async function notifyError(title: string, error: string, alertTs?: string
   const blocks: (Block | KnownBlock)[] = [
     {
       type: 'header',
-      text: { type: 'plain_text', text: `❌ 분석 실패: ${title}` },
+      text: { type: 'plain_text', text: headerText(`❌ 분석 실패: ${title}`) },
     },
     {
       type: 'section',
