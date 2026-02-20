@@ -6,6 +6,8 @@
   "scripts": {
     "webhook": "tsx src/webhook-server.ts",
     "webhook:prod": "node dist/webhook-server.js",
+    "bot": "tsx src/slack-bot.ts",
+    "bot:dev": "tsx watch src/slack-bot.ts",
     "build": "tsc",
     "dev": "tsx watch src/webhook-server.ts"
   },
@@ -19,9 +21,10 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "@slack/bolt": "^4.6.0",
     "@slack/web-api": "^7.3.4",
-    "express": "^4.21.2",
-    "dotenv": "^16.4.7"
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2"
   },
   "devDependencies": {
     "@types/express": "^5.0.0",

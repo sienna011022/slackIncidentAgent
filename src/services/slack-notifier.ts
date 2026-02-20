@@ -135,7 +135,7 @@ export async function notifyError(title: string, error: string, alertTs?: string
   }
 }
 
-function splitReport(text: string): string[] {
+export function splitReport(text: string): string[] {
   if (text.length <= SLACK_MAX_BLOCK_TEXT) return [text];
 
   const chunks: string[] = [];

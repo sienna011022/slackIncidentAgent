@@ -43,7 +43,7 @@ app.post('/webhook', validateSecret, (req: Request, res: Response) => {
   const title = payload.title || 'Grafana Alert';
   const rawJson = JSON.stringify(payload, null, 2);
   const prompt =
-    `incident-orchestrator 에이전트를 사용해서 다음 Grafana 알람을 분석해줘:\n\n` +
+    `incident-orchestrator 에이전트를 사용해서 다음 장애를 분석해줘:\n\n` +
     `\`\`\`json\n${rawJson}\n\`\`\``;
 
   console.log(`[Webhook] 알람 수신: ${title} (firing: ${firingAlerts.length}건)`);
