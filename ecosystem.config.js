@@ -13,5 +13,18 @@ module.exports = {
       error_file: 'logs/bot-err.log',
       time: true,
     },
+    {
+      name: 'webhook-server',
+      script: 'node_modules/.bin/tsx',
+      args: 'src/webhook-server.ts',
+      cwd: __dirname,
+      interpreter: 'none',
+      env_file: '.env',
+      restart_delay: 5000,
+      max_restarts: 10,
+      out_file: 'logs/webhook-out.log',
+      error_file: 'logs/webhook-err.log',
+      time: true,
+    },
   ],
 };

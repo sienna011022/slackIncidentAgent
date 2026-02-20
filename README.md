@@ -4,12 +4,14 @@ Grafana 알람 발생 시 Claude AI 에이전트가 자동으로 장애를 분�
 
 ```
 Grafana Alert → EC2 Webhook Server → Claude Agent → Slack
+Slack 멘션/@봇 → Slack Bot (Socket Mode) → Claude Agent → Slack
 ```
 
 ---
 
 ## 동작 방식
 
+### Webhook 모드 (Grafana 자동 트리거)
 1. Grafana가 알람을 발생시키면 EC2의 Webhook 서버로 전송
 2. 서버가 즉시 Slack에 "분석 시작 중" 알림 전송
 3. `incident-orchestrator` 에이전트가 자동 실행
@@ -18,6 +20,11 @@ Grafana Alert → EC2 Webhook Server → Claude Agent → Slack
    - **Phase 3** — 통합 분석 리포트 생성
 4. 완성된 리포트를 Slack 채널로 전송
 
+### Slack Bot 모드 (수동 요청)
+1. Slack에서 봇을 멘션하거나 `/incident` 커맨드로 분석 요청
+2. `incident-orchestrator` 에이전트가 자동 실행
+3. 완성된 리포트를 스레드로 전송
+
 ---
 
 ## 사전 요구사항
@@ -25,7 +32,7 @@ Grafana Alert → EC2 Webhook Server → Claude Agent → Slack
 - Node.js 22+
 - [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) 설치 및 로그인
 - Grafana (Loki + Prometheus 연동)
-- Slack Incoming Webhook URL
+- Slack App (Bot Token + App Token)
 - Notion 연동 (과거 사례 검색용, 선택)
 
 ---
@@ -51,22 +58,42 @@ cp .env.example .env
 | 변수 | 필수 | 설명 |
 |------|------|------|
 | `SLACK_BOT_TOKEN` | ✅ | Slack Bot Token (`xoxb-`로 시작) |
-| `SLACK_CHANNEL_ID` | ✅ | 메시지를 전송할 채널 ID (`C`로 시작) |
+| `SLACK_APP_TOKEN` | ✅ (Bot 모드) | Slack App-Level Token (`xapp-`로 시작), Socket Mode용 |
+| `SLACK_CHANNEL_ID` | ✅ (Webhook 모드) | 메시지를 전송할 채널 ID (`C`로 시작) |
 | `PORT` | - | 웹훅 서버 포트 (기본값: `3000`) |
 | `WEBHOOK_SECRET` | - | Grafana 인증 토큰 (설정 시 헤더 검증) |
 | `CLAUDE_PROJECT_DIR` | - | 프로젝트 루트 경로 (기본값: `process.cwd()`) |
+| `CLAUDE_PATH` | - | claude CLI 절대경로 (자동 탐지 실패 시 수동 지정) |
 
 ---
 
 ## 실행
 
 ```bash
-# 개발 모드 (파일 변경 시 자동 재시작)
+# Webhook 서버 (Grafana 알람 수신)
 npm run webhook
 
-# 프로덕션
-npm run build
-npm run webhook:prod
+# Slack Bot (Socket Mode, 멘션/@incident 커맨드 응답)
+npm run bot
+```
+
+### 백그라운드 실행 (EC2)
+
+```bash
+mkdir -p logs
+
+nohup npm run webhook > logs/webhook.log 2>&1 &
+nohup npm run bot     > logs/bot.log     2>&1 &
+```
+
+### Slack Bot 사용법
+
+```
+# 봇 멘션
+@봇이름 ip-10-20-38-11 노드에서 containerd shim 이슈 분석해줘
+
+# 슬래시 커맨드
+/incident teamwalk-api 2026-02-20 10:00 메모리 급증
 ```
 
 ---
@@ -132,12 +159,12 @@ slackIncidentAgent/
 │   ├── settings.local.json     # MCP 권한 설정
 │   └── agents/                 # 에이전트 정의 파일
 ├── src/
-│   ├── webhook-server.ts       # Express 웹훅 서버 (진입점)
+│   ├── webhook-server.ts       # Express 웹훅 서버 (Grafana 알람 수신)
+│   ├── slack-bot.ts            # Slack Bot (Socket Mode, 멘션/커맨드 응답)
 │   ├── types/grafana.ts        # Grafana 웹훅 페이로드 타입
-│   ├── services/
-│   │   ├── claude-runner.ts    # Claude CLI 실행
-│   │   └── slack-notifier.ts   # Slack 알림 전송
-│   └── utils/alert-parser.ts   # 알람 파싱 및 프롬프트 생성
+│   └── services/
+│       ├── claude-runner.ts    # Claude CLI 실행 (경로 자동 탐지)
+│       └── slack-notifier.ts   # Slack 알림 전송
 ├── .env.example
 ├── test-webhook.sh             # 로컬 테스트용 스크립트
 ├── PORTFOLIO.md                # 프로젝트 상세 설명 (SRE 포트폴리오)
