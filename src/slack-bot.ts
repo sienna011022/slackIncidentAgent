@@ -166,7 +166,7 @@ app.command('/incident', async ({ command, ack }) => {
   });
 
   const say = async (args: any) => {
-    await app.client.chat.postMessage({ channel, ...args });
+    return app.client.chat.postMessage({ channel, ...args });
   };
 
   await runAnalysis({
