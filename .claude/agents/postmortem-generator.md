@@ -367,7 +367,7 @@ for panel in selected_panels:
 
 ```bash
 mcp__claude_ai_Notion__notion-create-pages
-- parent: {포스트모텀 데이터베이스 ID 또는 workspace}
+- parent: "2daa054b7d8280d9aa8ad54c34ca5dc7"  # 포스트모텀 DB (고정)
 - pages: [{
     properties: {
       "title": "[TeamwalkAPI] Memory Alert (2026-02-13)",
@@ -382,9 +382,8 @@ mcp__claude_ai_Notion__notion-create-pages
 ```
 
 **parent 설정:**
-- 포스트모텀 데이터베이스가 있으면 해당 DB ID 사용
-- 없으면 workspace 레벨에 생성
-- 사용자에게 parent 확인 후 진행
+- 항상 포스트모텀 DB `2daa054b7d8280d9aa8ad54c34ca5dc7` 사용 (고정)
+- https://www.notion.so/cashwalkteam/2daa054b7d8280d9aa8ad54c34ca5dc7
 
 ---
 

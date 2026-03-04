@@ -134,14 +134,15 @@ app.event('app_mention', async ({ event, say }) => {
 
 // ─── 슬래시 커맨드 처리 (/incident <내용>) ────────────────────────────────
 
-app.command('/incident', async ({ command, ack, say }) => {
+app.command('/incident', async ({ command, ack }) => {
   await ack();
 
   const userQuery = command.text.trim();
+  const channel = command.channel_id;
 
   if (!userQuery) {
-    await say({
-      channel: command.channel_id,
+    await app.client.chat.postMessage({
+      channel,
       text: '분석할 내용을 입력해주세요.\n예: `/incident containerd shim 이슈 원인 분석`',
     });
     return;
@@ -149,9 +150,8 @@ app.command('/incident', async ({ command, ack, say }) => {
 
   console.log(`[SlackBot] /incident 커맨드 수신 (user: ${command.user_id}): ${userQuery.slice(0, 80)}...`);
 
-  // 슬래시 커맨드는 thread_ts가 없으므로 첫 메시지 ts를 스레드 기준으로 사용
-  const initResult = await say({
-    channel: command.channel_id,
+  const initResult = await app.client.chat.postMessage({
+    channel,
     text: `🔍 *인시던트 분석 요청*\n${userQuery}`,
     blocks: [
       {
@@ -165,9 +165,13 @@ app.command('/incident', async ({ command, ack, say }) => {
     ],
   });
 
+  const say = async (args: any) => {
+    await app.client.chat.postMessage({ channel, ...args });
+  };
+
   await runAnalysis({
     say,
-    channel: command.channel_id,
+    channel,
     threadTs: initResult.ts as string,
     userQuery,
     loadingText: '`incident-orchestrator` 에이전트가 분석을 시작합니다...',

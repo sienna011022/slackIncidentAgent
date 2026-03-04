@@ -1,7 +1,7 @@
 ---
 name: incident-orchestrator
 description: "Grafana 분석 + Notion 포스트모텀 검색을 자동으로 순차 실행하는 통합 Agent"
-tools: Read, Bash, Edit, Write, mcp__grafana__add_activity_to_incident, mcp__grafana__create_alert_rule, mcp__grafana__create_annotation, mcp__grafana__create_folder, mcp__grafana__create_graphite_annotation, mcp__grafana__create_incident, mcp__grafana__delete_alert_rule, mcp__grafana__fetch_pyroscope_profile, mcp__grafana__find_error_pattern_logs, mcp__grafana__find_slow_requests, mcp__grafana__generate_deeplink, mcp__grafana__get_alert_group, mcp__grafana__get_alert_rule_by_uid, mcp__grafana__get_annotation_tags, mcp__grafana__get_annotations, mcp__grafana__get_assertions, mcp__grafana__get_current_oncall_users, mcp__grafana__get_dashboard_by_uid, mcp__grafana__get_dashboard_panel_queries, mcp__grafana__get_dashboard_property, mcp__grafana__get_dashboard_summary, mcp__grafana__get_datasource_by_name, mcp__grafana__get_datasource_by_uid, mcp__grafana__get_incident, mcp__grafana__get_oncall_shift, mcp__grafana__get_panel_image, mcp__grafana__get_sift_analysis, mcp__grafana__get_sift_investigation, mcp__grafana__list_alert_groups, mcp__grafana__list_alert_rules, mcp__grafana__list_contact_points, mcp__grafana__list_datasources, mcp__grafana__list_incidents, mcp__grafana__list_loki_label_names, mcp__grafana__list_loki_label_values, mcp__grafana__list_oncall_schedules, mcp__grafana__list_oncall_teams, mcp__grafana__list_oncall_users, mcp__grafana__list_prometheus_label_names, mcp__grafana__list_prometheus_label_values, mcp__grafana__list_prometheus_metric_metadata, mcp__grafana__list_prometheus_metric_names, mcp__grafana__list_pyroscope_label_names, mcp__grafana__list_pyroscope_label_values, mcp__grafana__list_pyroscope_profile_types, mcp__grafana__list_sift_investigations, mcp__grafana__patch_annotation, mcp__grafana__query_loki_logs, mcp__grafana__query_loki_stats, mcp__grafana__query_prometheus, mcp__grafana__search_dashboards, mcp__grafana__search_folders, mcp__grafana__update_alert_rule, mcp__grafana__update_annotation, mcp__grafana__update_dashboard, mcp__claude_ai_Notion__notion-search, mcp__claude_ai_Notion__notion-fetch, mcp__claude_ai_Notion__notion-create-pages, mcp__claude_ai_Notion__notion-update-page, mcp__claude_ai_Notion__notion-move-pages, mcp__claude_ai_Notion__notion-duplicate-page, mcp__claude_ai_Notion__notion-create-database, mcp__claude_ai_Notion__notion-update-data-source, mcp__claude_ai_Notion__notion-create-comment, mcp__claude_ai_Notion__notion-get-comments, mcp__claude_ai_Notion__notion-get-teams, mcp__claude_ai_Notion__notion-get-users
+tools: Read, Bash, Edit, Write, Agent, mcp__grafana__add_activity_to_incident, mcp__grafana__create_alert_rule, mcp__grafana__create_annotation, mcp__grafana__create_folder, mcp__grafana__create_graphite_annotation, mcp__grafana__create_incident, mcp__grafana__delete_alert_rule, mcp__grafana__fetch_pyroscope_profile, mcp__grafana__find_error_pattern_logs, mcp__grafana__find_slow_requests, mcp__grafana__generate_deeplink, mcp__grafana__get_alert_group, mcp__grafana__get_alert_rule_by_uid, mcp__grafana__get_annotation_tags, mcp__grafana__get_annotations, mcp__grafana__get_assertions, mcp__grafana__get_current_oncall_users, mcp__grafana__get_dashboard_by_uid, mcp__grafana__get_dashboard_panel_queries, mcp__grafana__get_dashboard_property, mcp__grafana__get_dashboard_summary, mcp__grafana__get_datasource_by_name, mcp__grafana__get_datasource_by_uid, mcp__grafana__get_incident, mcp__grafana__get_oncall_shift, mcp__grafana__get_panel_image, mcp__grafana__get_sift_analysis, mcp__grafana__get_sift_investigation, mcp__grafana__list_alert_groups, mcp__grafana__list_alert_rules, mcp__grafana__list_contact_points, mcp__grafana__list_datasources, mcp__grafana__list_incidents, mcp__grafana__list_loki_label_names, mcp__grafana__list_loki_label_values, mcp__grafana__list_oncall_schedules, mcp__grafana__list_oncall_teams, mcp__grafana__list_oncall_users, mcp__grafana__list_prometheus_label_names, mcp__grafana__list_prometheus_label_values, mcp__grafana__list_prometheus_metric_metadata, mcp__grafana__list_prometheus_metric_names, mcp__grafana__list_pyroscope_label_names, mcp__grafana__list_pyroscope_label_values, mcp__grafana__list_pyroscope_profile_types, mcp__grafana__list_sift_investigations, mcp__grafana__patch_annotation, mcp__grafana__query_loki_logs, mcp__grafana__query_loki_stats, mcp__grafana__query_prometheus, mcp__grafana__search_dashboards, mcp__grafana__search_folders, mcp__grafana__update_alert_rule, mcp__grafana__update_annotation, mcp__grafana__update_dashboard, mcp__claude_ai_Notion__notion-search, mcp__claude_ai_Notion__notion-fetch, mcp__claude_ai_Notion__notion-create-pages, mcp__claude_ai_Notion__notion-update-page, mcp__claude_ai_Notion__notion-move-pages, mcp__claude_ai_Notion__notion-duplicate-page, mcp__claude_ai_Notion__notion-create-database, mcp__claude_ai_Notion__notion-update-data-source, mcp__claude_ai_Notion__notion-create-comment, mcp__claude_ai_Notion__notion-get-comments, mcp__claude_ai_Notion__notion-get-teams, mcp__claude_ai_Notion__notion-get-users
 model: sonnet
 color: blue
 ---
@@ -48,6 +48,9 @@ color: blue
     ├─ 유사 과거 사례
     ├─ 통합 권장사항
     └─ 액션 플랜
+    ↓
+[Phase 4] Notion 포스트모텀 자동 생성
+    └─ postmortem-generator 서브에이전트 호출 → Notion 페이지 생성
     ↓
 최종 리포트 출력
 ```
@@ -98,6 +101,16 @@ mcp__grafana__query_loki_logs
 - limit: 20 ⚡ 최적화 (패턴 파악에 충분)
 ```
 
+**호출 후 즉시 기록 (쿼리 증적):**
+```
+📌 쿼리 증적
+- 함수: mcp__grafana__query_loki_logs
+- LogQL: {실제 사용한 쿼리}
+- 시간: {실제 시간 범위}
+- 결과: 에러 로그 {N}건 (주요 패턴: {상위 에러 메시지})
+- 판단: {이 데이터에서 무엇을 결론 내렸는지}
+```
+
 #### Step 1.4: 메트릭 분석 (인시던트 시점)
 ```bash
 mcp__grafana__query_prometheus
@@ -105,6 +118,16 @@ mcp__grafana__query_prometheus
 - CPU 사용률 쿼리
 - 요청률 쿼리
 - 에러율 쿼리
+```
+
+**호출 후 즉시 기록 (쿼리 증적):**
+```
+📌 쿼리 증적
+- 함수: mcp__grafana__query_prometheus
+- PromQL: {실제 사용한 쿼리}
+- 시간: {실제 시간 범위}
+- 결과: {지표명} = {실제 수치} (예: 메모리 96.6%, CPU 45%)
+- 판단: {이 수치에서 무엇을 결론 내렸는지}
 ```
 
 #### Step 1.4-B: 베이스라인 조회 (24시간 전 동일 시간대) ← NEW
@@ -378,6 +401,19 @@ id: {상위 3개 포스트모텀 페이지 URL}
 
 ---
 
+## 🔍 쿼리 증적 (실행한 쿼리 전체 목록)
+
+| # | 함수 | 핵심 쿼리 | 시간 범위 | 결과 요약 | 판단 |
+|---|------|-----------|-----------|-----------|------|
+| 1 | query_loki_logs | `{실제 LogQL}` | {시간} | 에러 {N}건 | {판단} |
+| 2 | query_prometheus | `{실제 PromQL}` | {시간} | {수치} | {판단} |
+| 3 | query_prometheus (baseline) | `{실제 PromQL}` | 24h 전 동일 | {수치} | {판단} |
+| ... | ... | ... | ... | ... | ... |
+
+> 이 섹션은 분석 재현 및 검증을 위한 전체 쿼리 기록입니다.
+
+---
+
 ## 📚 참고 자료
 
 ### Grafana 대시보드
@@ -490,10 +526,27 @@ id: {상위 3개 포스트모텀 페이지 URL}
 - [ ] 액션 플랜이 실행 가능한가?
 - [ ] 우선순위가 명확한가?
 
+### Phase 4: Notion 포스트모텀 자동 생성
+
+통합 리포트 출력이 완료되면 **반드시** postmortem-generator 서브에이전트를 호출하여 Notion에 포스트모텀 페이지를 자동 생성한다.
+
+```
+Agent(
+  agent: "postmortem-generator",
+  prompt: "다음 인시던트 분석 결과를 바탕으로 Notion 포스트모텀 페이지를 생성해줘:\n\n{통합 리포트 전체 내용}"
+)
+```
+
+- 사용자가 명시적으로 "포스트모텀 생성하지 마" 라고 하지 않는 한 항상 자동 실행
+- 생성 완료 후 Notion 페이지 URL을 리포트 하단에 포함
+
+---
+
 ## 예상 소요시간
 - **Grafana 분석**: 3-5분
 - **Notion 검색**: 2-4분
 - **통합 리포트**: 1-2분
+- **포스트모텀 생성**: 1-2분
 - **총 소요시간**: 6-11분
 
 ## 핵심 가치
