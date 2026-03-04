@@ -17,90 +17,128 @@ const app = new App({
 
 // ─── 공통 분석 실행 함수 ────────────────────────────────────────────────────
 
+async function postChunks(
+  channel: string,
+  threadTs: string,
+  chunks: string[],
+  say: Function,
+): Promise<void> {
+  const firstChunkResult = await app.client.chat.postMessage({
+    channel,
+    thread_ts: threadTs,
+    text: chunks[0],
+    blocks: [{ type: 'section', text: { type: 'mrkdwn', text: chunks[0] } }],
+  });
+
+  for (let i = 1; i < chunks.length; i++) {
+    await app.client.chat.postMessage({
+      channel,
+      thread_ts: threadTs,
+      text: `(${i + 1}/${chunks.length})`,
+      blocks: [{ type: 'section', text: { type: 'mrkdwn', text: chunks[i] } }],
+    });
+  }
+}
+
 async function runAnalysis({
   say,
   channel,
   threadTs,
   userQuery,
-  loadingText,
 }: {
   say: Function;
   channel: string;
   threadTs: string;
   userQuery: string;
-  loadingText: string;
 }): Promise<void> {
-  // 1) 분석 시작 알림
-  const loadingResult = await say({
+  // ── Phase 1: 인시던트 분석 ──────────────────────────────────────────────
+  const analysisLoading = await app.client.chat.postMessage({
     channel,
     thread_ts: threadTs,
-    text: loadingText,
-    blocks: [
-      {
-        type: 'context',
-        elements: [{ type: 'mrkdwn', text: `⏳ ${loadingText}` }],
-      },
-    ],
+    text: '⏳ 분석 중...',
+    blocks: [{ type: 'context', elements: [{ type: 'mrkdwn', text: '⏳ `incident-orchestrator` 에이전트가 분석을 시작합니다...' }] }],
   });
 
-  const prompt =
-    `incident-orchestrator 에이전트를 사용해서 다음 내용을 분석해줘:\n\n${userQuery}`;
-
+  let report: string;
   try {
-    const report = await runIncidentAgent(prompt);
-    const chunks = splitReport(report);
-
-    // 2) 첫 번째 청크로 로딩 메시지 업데이트
+    report = await runIncidentAgent(
+      `incident-orchestrator 에이전트를 사용해서 다음 내용을 분석해줘 (포스트모텀 생성은 하지 말고 분석 리포트만):\n\n${userQuery}`
+    );
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    console.error('[SlackBot] 분석 실패:', errMsg);
     await app.client.chat.update({
       channel,
-      ts: loadingResult.ts as string,
-      text: `✅ 분석 완료`,
+      ts: analysisLoading.ts as string,
+      text: '❌ 분석 실패',
       blocks: [
-        {
-          type: 'header',
-          text: { type: 'plain_text', text: '✅ 분석 완료' },
-        },
-        {
-          type: 'section',
-          text: { type: 'mrkdwn', text: chunks[0] },
-        },
+        { type: 'header', text: { type: 'plain_text', text: '❌ 분석 실패' } },
+        { type: 'section', text: { type: 'mrkdwn', text: `\`\`\`${errMsg.slice(0, 500)}\`\`\`` } },
       ],
     });
+    return;
+  }
 
-    // 3) 리포트가 길면 스레드에 이어서 전송
-    for (let i = 1; i < chunks.length; i++) {
-      await say({
+  // 분석 완료 → 로딩 메시지 업데이트 후 청크 전송
+  const chunks = splitReport(report);
+  await app.client.chat.update({
+    channel,
+    ts: analysisLoading.ts as string,
+    text: '✅ 분석 완료',
+    blocks: [
+      { type: 'header', text: { type: 'plain_text', text: '✅ 인시던트 분석 완료' } },
+      { type: 'section', text: { type: 'mrkdwn', text: chunks[0] } },
+    ],
+  });
+  for (let i = 1; i < chunks.length; i++) {
+    await app.client.chat.postMessage({
+      channel,
+      thread_ts: threadTs,
+      text: `(${i + 1}/${chunks.length})`,
+      blocks: [{ type: 'section', text: { type: 'mrkdwn', text: chunks[i] } }],
+    });
+  }
+
+  // ── Phase 2: 포스트모텀 생성 ────────────────────────────────────────────
+  const postmortemLoading = await app.client.chat.postMessage({
+    channel,
+    thread_ts: threadTs,
+    text: '⏳ 포스트모텀 생성 중...',
+    blocks: [{ type: 'context', elements: [{ type: 'mrkdwn', text: '⏳ Notion 포스트모텀 페이지를 생성하고 있습니다...' }] }],
+  });
+
+  try {
+    const postmortemResult = await runIncidentAgent(
+      `postmortem-generator 에이전트를 사용해서 다음 분석 결과로 Notion 포스트모텀 페이지를 생성해줘:\n\n${report}`
+    );
+    const pmChunks = splitReport(postmortemResult);
+    await app.client.chat.update({
+      channel,
+      ts: postmortemLoading.ts as string,
+      text: '✅ 포스트모텀 생성 완료',
+      blocks: [
+        { type: 'header', text: { type: 'plain_text', text: '✅ Notion 포스트모텀 생성 완료' } },
+        { type: 'section', text: { type: 'mrkdwn', text: pmChunks[0] } },
+      ],
+    });
+    for (let i = 1; i < pmChunks.length; i++) {
+      await app.client.chat.postMessage({
         channel,
         thread_ts: threadTs,
-        text: `(${i + 1}/${chunks.length})`,
-        blocks: [
-          {
-            type: 'section',
-            text: { type: 'mrkdwn', text: chunks[i] },
-          },
-        ],
+        text: `(${i + 1}/${pmChunks.length})`,
+        blocks: [{ type: 'section', text: { type: 'mrkdwn', text: pmChunks[i] } }],
       });
     }
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err);
-    console.error('[SlackBot] 분석 실패:', errMsg);
-
+    console.error('[SlackBot] 포스트모텀 생성 실패:', errMsg);
     await app.client.chat.update({
       channel,
-      ts: loadingResult.ts as string,
-      text: '❌ 분석 실패',
+      ts: postmortemLoading.ts as string,
+      text: '❌ 포스트모텀 생성 실패',
       blocks: [
-        {
-          type: 'header',
-          text: { type: 'plain_text', text: '❌ 분석 실패' },
-        },
-        {
-          type: 'section',
-          text: {
-            type: 'mrkdwn',
-            text: `에이전트 실행 중 오류가 발생했습니다:\n\`\`\`${errMsg.slice(0, 500)}\`\`\``,
-          },
-        },
+        { type: 'header', text: { type: 'plain_text', text: '❌ 포스트모텀 생성 실패' } },
+        { type: 'section', text: { type: 'mrkdwn', text: `\`\`\`${errMsg.slice(0, 500)}\`\`\`` } },
       ],
     });
   }
@@ -128,7 +166,6 @@ app.event('app_mention', async ({ event, say }) => {
     channel: event.channel,
     threadTs: (event as any).thread_ts || event.ts,
     userQuery,
-    loadingText: '`incident-orchestrator` 에이전트가 분석을 시작합니다...',
   });
 });
 
@@ -174,7 +211,6 @@ app.command('/incident', async ({ command, ack }) => {
     channel,
     threadTs: initResult.ts as string,
     userQuery,
-    loadingText: '`incident-orchestrator` 에이전트가 분석을 시작합니다...',
   });
 });
 
