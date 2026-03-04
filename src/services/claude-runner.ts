@@ -57,7 +57,7 @@ export async function runIncidentAgent(prompt: string): Promise<string> {
     console.log(`[Claude] 에이전트 실행 시작: ${new Date().toISOString()}`);
     console.log(`[Claude] 프롬프트: ${prompt.slice(0, 100)}...`);
 
-    const proc = spawn(CLAUDE_BIN, ['-p', prompt, '--output-format', 'text'], {
+    const proc = spawn(CLAUDE_BIN, ['-p', prompt, '--output-format', 'text', '--dangerously-skip-permissions'], {
       cwd: PROJECT_DIR,
       env: { ...process.env },
       stdio: ['ignore', 'pipe', 'pipe'],
