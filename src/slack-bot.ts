@@ -126,7 +126,7 @@ app.event('app_mention', async ({ event, say }) => {
   await runAnalysis({
     say,
     channel: event.channel,
-    threadTs: event.ts,
+    threadTs: (event as any).thread_ts || event.ts,
     userQuery,
     loadingText: '`incident-orchestrator` 에이전트가 분석을 시작합니다...',
   });
